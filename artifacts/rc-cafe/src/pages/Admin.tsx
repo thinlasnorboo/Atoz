@@ -19,7 +19,7 @@ import { format } from "date-fns";
 import {
   LogOut, Activity, Calendar, Package, Utensils, MessageSquare,
   Trash2, Edit2, Plus, X, Images, CheckCircle2, XCircle, Link2, Building2, Copy,
-  Upload, ImageIcon, Eye, TrendingUp, ChevronUp, ChevronDown, LayoutDashboard,
+  Upload, ImageIcon, Eye, TrendingUp, ChevronUp, ChevronDown, LayoutDashboard, Wallet,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -667,6 +667,46 @@ export default function Admin() {
       if (res.ok) toast({ title: "Bank Details Saved" });
     } finally { setBankSaving(false); }
   };
+  // ── Cashbacks / Payments state ──
+  type Payment = { id: number; customerName: string; customerUpiId: string; amount: number; cashbackAmount: number; status: string; note: string | null; createdAt: string };
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [upiEdit, setUpiEdit] = useState("");
+  const [upiSaving, setUpiSaving] = useState(false);
+
+  const fetchPayments = async () => {
+    setPaymentsLoading(true);
+    try {
+      const tok = localStorage.getItem("rc_admin_token") ?? "";
+      const r = await fetch("/api/payments", { headers: { Authorization: `Bearer ${tok}` } });
+      const data = await r.json();
+      if (Array.isArray(data)) setPayments(data);
+    } finally { setPaymentsLoading(false); }
+  };
+
+  const handleUpdatePayment = async (id: number, status: string) => {
+    const tok = localStorage.getItem("rc_admin_token") ?? "";
+    await fetch(`/api/payments/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ status }) });
+    toast({ title: status === "paid" ? "✅ Cashback Paid!" : "❌ Rejected" });
+    fetchPayments();
+  };
+
+  const handleSaveUpi = async () => {
+    setUpiSaving(true);
+    try {
+      const tok = localStorage.getItem("rc_admin_token") ?? "";
+      await fetch("/api/bank-details", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` }, body: JSON.stringify({ upiId: upiEdit }) });
+      toast({ title: "UPI ID saved!" });
+    } finally { setUpiSaving(false); }
+  };
+
+  useEffect(() => {
+    if (activeTab === "cashbacks") {
+      fetchPayments();
+      fetch("/api/bank-details").then(r => r.json()).then(d => setUpiEdit(d.upiId ?? "")).catch(() => {});
+    }
+  }, [activeTab]);
+
   // Product modal state
   const [productModal, setProductModal] = useState<{ mode: "add" | "edit"; product?: Product } | null>(null);
   // Menu modal state
@@ -828,6 +868,7 @@ export default function Admin() {
               { value: "slides", icon: <Images className="w-4 h-4 mr-2" />, label: "Slider" },
               { value: "messages", icon: <MessageSquare className="w-4 h-4 mr-2" />, label: "Messages" },
               { value: "settings", icon: <Building2 className="w-4 h-4 mr-2" />, label: "Settings" },
+              { value: "cashbacks", icon: <Wallet className="w-4 h-4 mr-2" />, label: "Cashbacks" },
             ].map(t => (
               <TabsTrigger key={t.value} value={t.value} className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-5 py-3 uppercase tracking-widest text-xs font-bold whitespace-nowrap flex items-center">
                 {t.icon}{t.label}
@@ -1184,6 +1225,97 @@ export default function Admin() {
               <Button onClick={handleSaveBank} disabled={bankSaving} className="rounded-none uppercase tracking-widest text-xs font-bold bg-primary hover:bg-primary/90 w-full mt-2">
                 {bankSaving ? "Saving..." : "Save Bank Details"}
               </Button>
+            </div>
+          </TabsContent>
+
+          {/* ── Cashbacks Tab ── */}
+          <TabsContent value="cashbacks" className="space-y-8 animate-in fade-in">
+
+            {/* UPI ID Edit */}
+            <div>
+              <h2 className="font-bold uppercase tracking-widest text-sm mb-4 flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-primary" /> Shop Ka UPI ID
+              </h2>
+              <div className="bg-card border border-border/50 p-6 max-w-md space-y-4">
+                <p className="text-xs text-muted-foreground">Yeh UPI ID Pay button par QR code mein dikhega. Customers is par seedha payment karenge.</p>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">UPI ID *</Label>
+                  <Input
+                    className="rounded-none font-mono text-base h-12"
+                    placeholder="yourshop@upi"
+                    value={upiEdit}
+                    onChange={e => setUpiEdit(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Jaise: larcafe@oksbi, thinlas@paytm, 9876543210@upi</p>
+                </div>
+                <Button
+                  onClick={handleSaveUpi}
+                  disabled={upiSaving || !upiEdit.trim()}
+                  className="rounded-none uppercase tracking-widest text-xs font-bold bg-primary hover:bg-primary/90 w-full h-11"
+                >
+                  {upiSaving ? "Saving..." : "Save UPI ID"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Cashback Claims */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold uppercase tracking-widest text-sm flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary" /> Cashback Claims
+                  <Badge variant="outline" className="ml-2 text-xs">{payments.filter(p => p.status === "pending").length} pending</Badge>
+                </h2>
+                <Button variant="outline" size="sm" onClick={fetchPayments} disabled={paymentsLoading} className="rounded-none uppercase tracking-widest text-xs">
+                  {paymentsLoading ? "Loading..." : "Refresh"}
+                </Button>
+              </div>
+
+              {payments.length === 0 ? (
+                <div className="bg-card border border-border/50 p-12 text-center text-muted-foreground">
+                  <Wallet className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                  <p className="text-sm uppercase tracking-widest">Abhi koi cashback claim nahi hai</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {payments.map(p => (
+                    <div key={p.id} className="bg-card border border-border/50 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm">{p.customerName}</span>
+                          <Badge className={`text-xs rounded-none ${p.status === "paid" ? "bg-green-600" : p.status === "rejected" ? "bg-destructive" : "bg-yellow-600"}`}>
+                            {p.status === "paid" ? "✅ Paid" : p.status === "rejected" ? "❌ Rejected" : "⏳ Pending"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs font-mono text-muted-foreground">{p.customerUpiId}</p>
+                        <div className="flex gap-4 text-xs text-muted-foreground mt-1">
+                          <span>Payment: <strong className="text-foreground">Rs {p.amount}</strong></span>
+                          <span>Cashback: <strong className="text-primary">Rs {p.cashbackAmount}</strong></span>
+                          <span>{new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                      </div>
+                      {p.status === "pending" && (
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            className="rounded-none uppercase tracking-widest text-xs bg-green-600 hover:bg-green-700 h-9 px-4"
+                            onClick={() => handleUpdatePayment(p.id, "paid")}
+                          >
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Paid
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-none uppercase tracking-widest text-xs border-destructive/50 text-destructive hover:bg-destructive hover:text-white h-9 px-4"
+                            onClick={() => handleUpdatePayment(p.id, "rejected")}
+                          >
+                            <XCircle className="w-3 h-3 mr-1" /> Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </TabsContent>
 

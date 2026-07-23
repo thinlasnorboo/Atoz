@@ -12,6 +12,7 @@ import slidesRouter from "./slides";
 import settingsRouter from "./settings";
 import storageRouter from "./storage";
 import visitsRouter from "./visits";
+import paymentsRouter from "./payments";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(bookingsRouter);
 router.use(statsRouter);
 router.use(slidesRouter);
 router.use(settingsRouter);
+router.use(paymentsRouter);
 
 export default router;

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
+import { PayButton } from "@/components/PayButton";
 import { useLocation } from "wouter";
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -19,6 +20,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
+      <PayButton />
     </div>
   );
 }

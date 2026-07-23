@@ -6,3 +6,4 @@ export * from "./slides";
 export * from "./bankDetails";
 export * from "./visits";
 export * from "./siteConfig";
+export * from "./payments";
